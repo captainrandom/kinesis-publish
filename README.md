@@ -4,6 +4,8 @@ Read lines from stdin sends them as messages to Kinesis
 This is still sub alpha. Once I have most of the todo's finished we will probably have an initial version of the alpha.
 Next version should use async a bit better.
 
+Also in one of the next updates I should consider reading from the stream and writing to stdout.
+
 ## Install
 ```bash
 cargo install kinesis-publish
@@ -24,6 +26,7 @@ echo message | kpub -s <stream name> -p <aws profile>
 
 
 ## TODO:
+1. Need to come up with a better/more consistent naming convention
 1. Need to figure out how to properly create a package
 1. Need to add some unit tests
 1. Possibly add github actions to build and push updates (when I push a major version tag)
