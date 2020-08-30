@@ -1,30 +1,58 @@
 extern crate rusoto_core;
 extern crate rusoto_kinesis;
 
-use rusoto_core::{Region, HttpClient};
-use rusoto_core::credential::ProfileProvider;
-use rusoto_kinesis::{KinesisClient, PutRecordsRequestEntry, PutRecordsInput, Kinesis};
-use std::io::{BufRead, BufReader};
 use bytes::Bytes;
-use uuid::Uuid;
+use rusoto_core::credential::{ProfileProvider, ChainProvider};
+use rusoto_core::{HttpClient, Region};
+use rusoto_kinesis::{Kinesis, KinesisClient, PutRecordsInput, PutRecordsRequestEntry};
 use std::io;
+use std::io::{BufRead, BufReader};
+use uuid::Uuid;
+use clap::{App, Arg};
 
 #[tokio::main]
 async fn main() {
-    let stream_name = "some_stream_name".to_string();
-    let kinesis_client = create_kinesis_client(String::from("profile_name"), Region::UsEast1);
+    // TODO: refactor this into it's own method
+    let matches = App::new("Kinesis Cli Uploader")
+        .arg(Arg::with_name("stream_name")
+            .short("s")
+            .long("stream-name")
+            .value_name("STREAM_NAME")
+            .help("The name of the stream")
+            .required(true)
+            .takes_value(true))
+        .arg(Arg::with_name("profile_name")
+            .short("p")
+            .long("profile")
+            .value_name("AWS_PROFILE_NAME")
+            .help("The aws profile name in the credentials file")
+            .takes_value(true))
+        .get_matches();
+    let stream_name = matches.value_of("stream_name").unwrap().to_string();
+    println!("using stream: {}", stream_name);
+
+    let profile_name = matches.value_of("profile_name");
+    let kinesis_client = create_kinesis_client(Region::UsEast1, profile_name);
     publish_messages_from_stdin(stream_name, kinesis_client).await;
 }
 
-
-fn create_kinesis_client(
-    profile_name: String,
-    region: Region,
-) -> KinesisClient {
+fn create_kinesis_client(region: Region, profile_name: Option<&str>) -> KinesisClient {
     let dispatcher = HttpClient::new().unwrap();
-    let mut profile_provider = ProfileProvider::new().unwrap();
-    profile_provider.set_profile(profile_name);
-    KinesisClient::new_with(dispatcher, profile_provider, region)
+    let credentials_provider = create_credentials_provider(profile_name);
+    KinesisClient::new_with(dispatcher, credentials_provider, region)
+}
+
+fn create_credentials_provider(profile_name: Option<&str>) -> ChainProvider {
+    match profile_name {
+        Some(profile) => {
+            let mut profile_provider = ProfileProvider::new().unwrap();
+            profile_provider.set_profile(profile.to_string());
+            return ChainProvider::with_profile_provider(profile_provider);
+        }
+        None => {
+            return ChainProvider::new();
+        }
+    }
 }
 
 async fn publish_messages_from_stdin(stream_name: String, kinesis_client: KinesisClient) {
@@ -43,20 +71,21 @@ async fn publish_messages_from_stdin(stream_name: String, kinesis_client: Kinesi
         });
 
         if record_list.len() > 100 {
-            let _result = kinesis_client.put_records(
-                PutRecordsInput {
-                    records: record_list.clone(),
-                    stream_name: stream_name.clone(),
-                });
-            // results_list.borrow().put(result);
+            let _result = kinesis_client.put_records(PutRecordsInput {
+                records: record_list.clone(),
+                stream_name: stream_name.clone(),
+            });
             record_list.clear();
         }
     }
-    let result = kinesis_client.put_records(
-        PutRecordsInput {
-            records: record_list.clone(),
-            stream_name: stream_name.clone(),
-        });
+    let result = kinesis_client.put_records(PutRecordsInput {
+        records: record_list.clone(),
+        stream_name: stream_name.clone(),
+    });
+
     let actual_result = result.await.unwrap();
-    println!("failed count: {}", actual_result.failed_record_count.unwrap());
+    println!(
+        "failed count: {}",
+        actual_result.failed_record_count.unwrap()
+    );
 }

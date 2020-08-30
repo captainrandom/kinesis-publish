@@ -24,7 +24,7 @@ echo message | kpub -s <stream name> -p <aws profile>
 
 
 ## TODO:
-1. Still need to add the cli options
 1. Need to figure out how to properly create a package
 1. Need to add some unit tests
 1. Possibly add github actions to build and push updates (when I push a major version tag)
+   - Have something, but need to properly set it up
