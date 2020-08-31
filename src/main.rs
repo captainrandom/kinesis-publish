@@ -70,7 +70,7 @@ async fn publish_messages_from_stdin(stream_name: String, kinesis_client: Kinesi
             partition_key: Uuid::new_v4().to_hyphenated().to_string(),
         });
 
-        if record_list.len() > 100 {
+        if record_list.len() >= 500 {
             let _result = kinesis_client.put_records(PutRecordsInput {
                 records: record_list.clone(),
                 stream_name: stream_name.clone(),
